@@ -1,0 +1,8 @@
+qengine/storage/RDFStorage.class
+qengine/program/Example.class
+qengine/storage/RDFHexaStore.class
+qengine/parser/RDFTriplesParser.class
+qengine/parser/StarQuerySparQLParser$1.class
+qengine/parser/StarQuerySparQLParser.class
+qengine/model/StarQuery.class
+qengine/model/RDFTriple.class

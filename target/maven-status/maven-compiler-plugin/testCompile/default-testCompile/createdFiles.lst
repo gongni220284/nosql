@@ -1,0 +1,5 @@
+qengine/parser/StarQuerySparQLParserTest.class
+qengine/parser/RDFAtomParserTest.class
+qengine/model/RDFTripleTest.class
+qengine/storage/RDFHexaStoreTest.class
+qengine/model/StarQueryTest.class
