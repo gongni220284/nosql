@@ -3,6 +3,8 @@ package qengine.storage;
 import fr.boreal.model.logicalElements.api.*;
 import fr.boreal.model.logicalElements.impl.SubstitutionImpl;
 import org.apache.commons.lang3.NotImplementedException;
+import qengine.dictionary.ITermDictionary;
+import qengine.dictionary.TermDictionaryImpl;
 import qengine.model.RDFTriple;
 import qengine.model.StarQuery;
 
@@ -14,25 +16,16 @@ import java.util.*;
  * Baseline pour comparer les performances avec HexaStore.
  */
 public class RDFGiantTable implements RDFStorage {
-    
-    //dictionaire
-    private Map<String, Integer> stringToInt = new HashMap<>();
-    private Map<Integer, String> intToString = new HashMap<>();
-    private int nextId = 0;
-    
-    private int encode(String str) {
-        if (!stringToInt.containsKey(str)) {
-            stringToInt.put(str, nextId);
-            intToString.put(nextId, str);
-            nextId++;
-        }
-        return stringToInt.get(str);
+    private  final ITermDictionary termDictionary;
+
+    public RDFGiantTable() {
+        this(new TermDictionaryImpl());
     }
-    
-    private String decode(int id) {
-        return intToString.get(id);
+
+    public RDFGiantTable(ITermDictionary termDictionary) {
+        this.termDictionary = termDictionary;
     }
-    
+
 
     private List<int[]> encodedTriples = new ArrayList<>();
     private Set<RDFTriple> allTriples = new HashSet<>();
@@ -44,9 +37,9 @@ public class RDFGiantTable implements RDFStorage {
             return false;
         }
         
-        int s = encode(triple.getTripleSubject().toString());
-        int p = encode(triple.getTriplePredicate().toString());
-        int o = encode(triple.getTripleObject().toString());
+        int s = termDictionary.encode(triple.getTripleSubject().toString());
+        int p = termDictionary.encode(triple.getTriplePredicate().toString());
+        int o = termDictionary.encode(triple.getTripleObject().toString());
         
         encodedTriples.add(new int[]{s, p, o});
         allTriples.add(triple);
@@ -73,9 +66,9 @@ public class RDFGiantTable implements RDFStorage {
         boolean pIsVar = predicateTerm.isVariable();
         boolean oIsVar = objectTerm.isVariable();
         
-        Integer sEncoded = sIsVar ? null : encode(subjectTerm.toString());
-        Integer pEncoded = pIsVar ? null : encode(predicateTerm.toString());
-        Integer oEncoded = oIsVar ? null : encode(objectTerm.toString());
+        Integer sEncoded = sIsVar ? null : termDictionary.encode(subjectTerm.toString());
+        Integer pEncoded = pIsVar ? null : termDictionary.encode(predicateTerm.toString());
+        Integer oEncoded = oIsVar ? null : termDictionary.encode(objectTerm.toString());
         
         for (int[] encodedTriple : encodedTriples) {
             int s = encodedTriple[0];
@@ -89,9 +82,9 @@ public class RDFGiantTable implements RDFStorage {
             
             if (matches) {
                 Substitution sub = new SubstitutionImpl();
-                if (sIsVar) sub.add((Variable) subjectTerm, createLiteral(decode(s)));
-                if (pIsVar) sub.add((Variable) predicateTerm, createLiteral(decode(p)));
-                if (oIsVar) sub.add((Variable) objectTerm, createLiteral(decode(o)));
+                if (sIsVar) sub.add((Variable) subjectTerm, createLiteral(termDictionary.decode(s)));
+                if (pIsVar) sub.add((Variable) predicateTerm, createLiteral(termDictionary.decode(p)));
+                if (oIsVar) sub.add((Variable) objectTerm, createLiteral(termDictionary.decode(o)));
                 results.add(sub);
             }
         }
