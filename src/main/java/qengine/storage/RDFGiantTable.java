@@ -61,15 +61,40 @@ public class RDFGiantTable implements RDFStorage {
         Term subjectTerm = triple.getTripleSubject();
         Term predicateTerm = triple.getTriplePredicate();
         Term objectTerm = triple.getTripleObject();
-        
+
         boolean sIsVar = subjectTerm.isVariable();
         boolean pIsVar = predicateTerm.isVariable();
         boolean oIsVar = objectTerm.isVariable();
-        
-        Integer sEncoded = sIsVar ? null : termDictionary.encode(subjectTerm.toString());
-        Integer pEncoded = pIsVar ? null : termDictionary.encode(predicateTerm.toString());
-        Integer oEncoded = oIsVar ? null : termDictionary.encode(objectTerm.toString());
-        
+
+        Integer sEncoded = null;
+        Integer pEncoded = null;
+        Integer oEncoded = null;
+
+        if (!sIsVar) {
+            String sStr = subjectTerm.toString();
+            sEncoded = termDictionary.tryGetId(sStr);
+            // Constant subject that never appears in the data → no match possible
+            if (sEncoded == null) {
+                return Collections.emptyIterator();
+            }
+        }
+
+        if (!pIsVar) {
+            String pStr = predicateTerm.toString();
+            pEncoded = termDictionary.tryGetId(pStr);
+            if (pEncoded == null) {
+                return Collections.emptyIterator();
+            }
+        }
+
+        if (!oIsVar) {
+            String oStr = objectTerm.toString();
+            oEncoded = termDictionary.tryGetId(oStr);
+            if (oEncoded == null) {
+                return Collections.emptyIterator();
+            }
+        }
+
         for (int[] encodedTriple : encodedTriples) {
             int s = encodedTriple[0];
             int p = encodedTriple[1];

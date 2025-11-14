@@ -65,5 +65,31 @@ class TermDictionaryImplTest {
         assertEquals(id1 + 1, id2);
         assertEquals(id2 + 1, id3);
     }
+
+    @Test
+    void tryGetIdShouldReturnNullForUnknownTerm() {
+        // No term encoded yet
+        assertNull(dict.tryGetId("Unknown"));
+    }
+
+    @Test
+    void tryGetIdShouldReturnExistingIdWithoutCreatingNewOne() {
+        int aliceId = dict.encode("Alice");
+        Integer aliceLookup = dict.tryGetId("Alice");
+        Integer bobLookup = dict.tryGetId("Bob");
+
+        assertNotNull(aliceLookup, "tryGetId must return a non-null id for an encoded term");
+        assertEquals(aliceId, aliceLookup, "tryGetId must return the same id as encode");
+
+        assertNull(bobLookup, "tryGetId must return null for a term that was never encoded");
+    }
+
+    @Test
+    void containsTermShouldBeConsistentWithTryGetId() {
+        assertFalse(dict.containsTerm("A"));
+        dict.encode("A");
+        assertTrue(dict.containsTerm("A"));
+        assertFalse(dict.containsTerm("B"));
+    }
 }
 

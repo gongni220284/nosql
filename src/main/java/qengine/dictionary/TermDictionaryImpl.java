@@ -17,19 +17,27 @@ public class TermDictionaryImpl implements ITermDictionary {
     @Override
     public int encode(String term) {
         Objects.requireNonNull(term, "term cannot be null");
-        if (!stringToInt.containsKey(term)) {
-            stringToInt.put(term, nextId);
-            intToString.put(nextId, term);
-            nextId++;
+        Integer existing = stringToInt.get(term);
+        if (existing != null) {
+            return existing;
         }
-        return stringToInt.get(term);
+        intToString.put(nextId, term);
+        stringToInt.put(term, nextId);
+        return nextId++;
     }
 
     @Override
     public String decode(int id) {
         String s = intToString.get(id);
-        if (s == null)
+        if (s == null) {
             throw new NoSuchElementException("Unknown id: " + id);
+        }
         return s;
+    }
+
+    @Override
+    public Integer tryGetId(String term) {
+        Objects.requireNonNull(term, "term cannot be null");
+        return stringToInt.get(term);
     }
 }
