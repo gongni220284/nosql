@@ -4,6 +4,8 @@ import fr.boreal.model.logicalElements.api.*;
 import fr.boreal.model.logicalElements.impl.SubstitutionImpl;
 
 import org.apache.commons.lang3.NotImplementedException;
+import qengine.dictionary.ITermDictionary;
+import qengine.dictionary.TermDictionaryImpl;
 import qengine.model.RDFTriple;
 import qengine.model.StarQuery;
 
@@ -20,25 +22,15 @@ import java.util.*;
  * (Prédicat, Sujet, Objet), (Prédicat, Objet, Sujet), (Objet, Sujet, Prédicat) et (Objet, Prédicat, Sujet).
  */
 public class RDFHexaStore implements RDFStorage {
-    
-    // dictionaire
-    private Map<String, Integer> stringToInt = new HashMap<>();
-    private Map<Integer, String> intToString = new HashMap<>();
-    private int nextId = 0;
-    
-    //str -> int
-    private int encode(String str) {
-        if (!stringToInt.containsKey(str)) {
-            stringToInt.put(str, nextId);
-            intToString.put(nextId, str);
-            nextId++;
-        }
-        return stringToInt.get(str);
+
+    private  final ITermDictionary termDictionary;
+
+    public RDFHexaStore() {
+        this(new TermDictionaryImpl());
     }
-    
-    //int -> str
-    private String decode(int id) {
-        return intToString.get(id);
+
+    public RDFHexaStore(ITermDictionary termDictionary) {
+        this.termDictionary = termDictionary;
     }
     
     // index
@@ -68,9 +60,9 @@ public class RDFHexaStore implements RDFStorage {
             return false;
         }
     
-        int s = encode(triple.getTripleSubject().toString());
-        int p = encode(triple.getTriplePredicate().toString());
-        int o = encode(triple.getTripleObject().toString());
+        int s = termDictionary.encode(triple.getTripleSubject().toString());
+        int p = termDictionary.encode(triple.getTriplePredicate().toString());
+        int o = termDictionary.encode(triple.getTripleObject().toString());
         
         //SPO[s][p].add(o)
         spo.computeIfAbsent(s, k -> new HashMap<>())
@@ -156,13 +148,17 @@ public class RDFHexaStore implements RDFStorage {
     // function
     // CCC
     private List<Substitution> matchCCC(Term s, Term p, Term o) {
-        int sEnc = encode(s.toString());
-        int pEnc = encode(p.toString());
-        int oEnc = encode(o.toString());
+        Integer sEncoded = termDictionary.tryGetId(s.toString());
+        Integer pEncoded = termDictionary.tryGetId(p.toString());
+        Integer oEncoded = termDictionary.tryGetId(o.toString());
+
+        if (sEncoded == null || pEncoded == null || oEncoded == null) {
+            return Collections.emptyList();
+        }
         
-        if (spo.containsKey(sEnc) && 
-            spo.get(sEnc).containsKey(pEnc) && 
-            spo.get(sEnc).get(pEnc).contains(oEnc)) {
+        if (spo.containsKey(sEncoded) && 
+            spo.get(sEncoded).containsKey(pEncoded) && 
+            spo.get(sEncoded).get(pEncoded).contains(oEncoded)) {
             return Collections.singletonList(new SubstitutionImpl());
         }
         return Collections.emptyList();
@@ -171,14 +167,19 @@ public class RDFHexaStore implements RDFStorage {
     // CC?
     private List<Substitution> matchCCVar(Term s, Term p, Term oVar) {
         List<Substitution> results = new ArrayList<>();
-        int sEnc = encode(s.toString());
-        int pEnc = encode(p.toString());
         
-        if (spo.containsKey(sEnc) && spo.get(sEnc).containsKey(pEnc)) {
-            Set<Integer> objects = spo.get(sEnc).get(pEnc);
-            for (Integer oEnc : objects) {
+        Integer sEncoded = termDictionary.tryGetId(s.toString());
+        Integer pEncoded = termDictionary.tryGetId(p.toString());
+        
+        if (sEncoded == null || pEncoded == null) {
+            return Collections.emptyList();
+        }
+        
+        if (spo.containsKey(sEncoded) && spo.get(sEncoded).containsKey(pEncoded)) {
+            Set<Integer> objects = spo.get(sEncoded).get(pEncoded);
+            for (Integer oEncoded : objects) {
                 Substitution sub = new SubstitutionImpl();
-                sub.add((Variable) oVar, createLiteral(decode(oEnc)));
+                sub.add((Variable) oVar, createLiteral(termDictionary.decode(oEncoded)));
                 results.add(sub);
             }
         }
@@ -188,14 +189,19 @@ public class RDFHexaStore implements RDFStorage {
     // C?C
     private List<Substitution> matchCVarC(Term s, Term pVar, Term o) {
         List<Substitution> results = new ArrayList<>();
-        int sEnc = encode(s.toString());
-        int oEnc = encode(o.toString());
         
-        if (sop.containsKey(sEnc) && sop.get(sEnc).containsKey(oEnc)) {
-            Set<Integer> predicates = sop.get(sEnc).get(oEnc);
-            for (Integer pEnc : predicates) {
+        Integer sEncoded = termDictionary.tryGetId(s.toString());
+        Integer oEncoded = termDictionary.tryGetId(o.toString());
+        
+        if (sEncoded == null || oEncoded == null) {
+            return Collections.emptyList();
+        }
+        
+        if (sop.containsKey(sEncoded) && sop.get(sEncoded).containsKey(oEncoded)) {
+            Set<Integer> predicates = sop.get(sEncoded).get(oEncoded);
+            for (Integer pEncoded : predicates) {
                 Substitution sub = new SubstitutionImpl();
-                sub.add((Variable) pVar, createLiteral(decode(pEnc)));
+                sub.add((Variable) pVar, createLiteral(termDictionary.decode(pEncoded)));
                 results.add(sub);
             }
         }
@@ -205,14 +211,19 @@ public class RDFHexaStore implements RDFStorage {
     // ?CC
     private List<Substitution> matchVarCC(Term sVar, Term p, Term o) {
         List<Substitution> results = new ArrayList<>();
-        int pEnc = encode(p.toString());
-        int oEnc = encode(o.toString());
         
-        if (pos.containsKey(pEnc) && pos.get(pEnc).containsKey(oEnc)) {
-            Set<Integer> subjects = pos.get(pEnc).get(oEnc);
-            for (Integer sEnc : subjects) {
+        Integer pEncoded = termDictionary.tryGetId(p.toString());
+        Integer oEncoded = termDictionary.tryGetId(o.toString());
+        
+        if (pEncoded == null || oEncoded == null) {
+            return Collections.emptyList();
+        }
+        
+        if (pos.containsKey(pEncoded) && pos.get(pEncoded).containsKey(oEncoded)) {
+            Set<Integer> subjects = pos.get(pEncoded).get(oEncoded);
+            for (Integer sEncoded : subjects) {
                 Substitution sub = new SubstitutionImpl();
-                sub.add((Variable) sVar, createLiteral(decode(sEnc)));
+                sub.add((Variable) sVar, createLiteral(termDictionary.decode(sEncoded)));
                 results.add(sub);
             }
         }
@@ -222,16 +233,21 @@ public class RDFHexaStore implements RDFStorage {
     // C??
     private List<Substitution> matchCVarVar(Term s, Term pVar, Term oVar) {
         List<Substitution> results = new ArrayList<>();
-        int sEnc = encode(s.toString());
         
-        if (spo.containsKey(sEnc)) {
-            Map<Integer, Set<Integer>> predicateMap = spo.get(sEnc);
+        Integer sEncoded = termDictionary.tryGetId(s.toString());
+        
+        if (sEncoded == null) {
+            return Collections.emptyList();
+        }
+        
+        if (spo.containsKey(sEncoded)) {
+            Map<Integer, Set<Integer>> predicateMap = spo.get(sEncoded);
             for (Map.Entry<Integer, Set<Integer>> entry : predicateMap.entrySet()) {
-                int pEnc = entry.getKey();
-                for (Integer oEnc : entry.getValue()) {
+                int pEncoded = entry.getKey();
+                for (Integer oEncoded : entry.getValue()) {
                     Substitution sub = new SubstitutionImpl();
-                    sub.add((Variable) pVar, createLiteral(decode(pEnc)));
-                    sub.add((Variable) oVar, createLiteral(decode(oEnc)));
+                    sub.add((Variable) pVar, createLiteral(termDictionary.decode(pEncoded)));
+                    sub.add((Variable) oVar, createLiteral(termDictionary.decode(oEncoded)));
                     results.add(sub);
                 }
             }
@@ -242,16 +258,21 @@ public class RDFHexaStore implements RDFStorage {
     // ?C?
     private List<Substitution> matchVarCVar(Term sVar, Term p, Term oVar) {
         List<Substitution> results = new ArrayList<>();
-        int pEnc = encode(p.toString());
         
-        if (pso.containsKey(pEnc)) {
-            Map<Integer, Set<Integer>> subjectMap = pso.get(pEnc);
+        Integer pEncoded = termDictionary.tryGetId(p.toString());
+        
+        if (pEncoded == null) {
+            return Collections.emptyList();
+        }
+        
+        if (pso.containsKey(pEncoded)) {
+            Map<Integer, Set<Integer>> subjectMap = pso.get(pEncoded);
             for (Map.Entry<Integer, Set<Integer>> entry : subjectMap.entrySet()) {
-                int sEnc = entry.getKey();
-                for (Integer oEnc : entry.getValue()) {
+                int sEncoded = entry.getKey();
+                for (Integer oEncoded : entry.getValue()) {
                     Substitution sub = new SubstitutionImpl();
-                    sub.add((Variable) sVar, createLiteral(decode(sEnc)));
-                    sub.add((Variable) oVar, createLiteral(decode(oEnc)));
+                    sub.add((Variable) sVar, createLiteral(termDictionary.decode(sEncoded)));
+                    sub.add((Variable) oVar, createLiteral(termDictionary.decode(oEncoded)));
                     results.add(sub);
                 }
             }
@@ -262,16 +283,21 @@ public class RDFHexaStore implements RDFStorage {
     // ??C
     private List<Substitution> matchVarVarC(Term sVar, Term pVar, Term o) {
         List<Substitution> results = new ArrayList<>();
-        int oEnc = encode(o.toString());
         
-        if (osp.containsKey(oEnc)) {
-            Map<Integer, Set<Integer>> subjectMap = osp.get(oEnc);
+        Integer oEncoded = termDictionary.tryGetId(o.toString());
+        
+        if (oEncoded == null) {
+            return Collections.emptyList();
+        }
+        
+        if (osp.containsKey(oEncoded)) {
+            Map<Integer, Set<Integer>> subjectMap = osp.get(oEncoded);
             for (Map.Entry<Integer, Set<Integer>> entry : subjectMap.entrySet()) {
-                int sEnc = entry.getKey();
-                for (Integer pEnc : entry.getValue()) {
+                int sEncoded = entry.getKey();
+                for (Integer pEncoded : entry.getValue()) {
                     Substitution sub = new SubstitutionImpl();
-                    sub.add((Variable) sVar, createLiteral(decode(sEnc)));
-                    sub.add((Variable) pVar, createLiteral(decode(pEnc)));
+                    sub.add((Variable) sVar, createLiteral(termDictionary.decode(sEncoded)));
+                    sub.add((Variable) pVar, createLiteral(termDictionary.decode(pEncoded)));
                     results.add(sub);
                 }
             }
@@ -284,14 +310,14 @@ public class RDFHexaStore implements RDFStorage {
         List<Substitution> results = new ArrayList<>();
         
         for (Map.Entry<Integer, Map<Integer, Set<Integer>>> sEntry : spo.entrySet()) {
-            int sEnc = sEntry.getKey();
+            int sEncoded = sEntry.getKey();
             for (Map.Entry<Integer, Set<Integer>> pEntry : sEntry.getValue().entrySet()) {
-                int pEnc = pEntry.getKey();
-                for (Integer oEnc : pEntry.getValue()) {
+                int pEncoded = pEntry.getKey();
+                for (Integer oEncoded : pEntry.getValue()) {
                     Substitution sub = new SubstitutionImpl();
-                    sub.add((Variable) sVar, createLiteral(decode(sEnc)));
-                    sub.add((Variable) pVar, createLiteral(decode(pEnc)));
-                    sub.add((Variable) oVar, createLiteral(decode(oEnc)));
+                    sub.add((Variable) sVar, createLiteral(termDictionary.decode(sEncoded)));
+                    sub.add((Variable) pVar, createLiteral(termDictionary.decode(pEncoded)));
+                    sub.add((Variable) oVar, createLiteral(termDictionary.decode(oEncoded)));
                     results.add(sub);
                 }
             }
